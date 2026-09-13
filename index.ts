@@ -5,7 +5,7 @@ import { shutdownInput, warmUpInput } from './src/win-input';
 
 const pluginSDK = new PluginSDK();
 
-console.log('[dial-accel] demarrage du plugin');
+console.log('[logi-dial-scroll] demarrage du plugin');
 warmUpInput();
 
 pluginSDK.registerAction(new OhifScrollAction());
