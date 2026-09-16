@@ -60,20 +60,36 @@ Tourne la roulette et ça défile.
 
 ## Réglage
 
-Un seul paramètre : `gain`, en haut de
-[`src/accelerated-dial.ts`](src/accelerated-dial.ts).
+Tout est en haut de [`src/scroll-model.ts`](src/scroll-model.ts).
 
-| gain | 1 à 6 crans donnent | ressenti |
+`gain` règle l'accélération que le plugin ajoute :
+
+| gain | 1 à 8 crans donnent | ressenti |
 |------|---------------------|----------|
-| 0    | 1, 2, 3, 4, 5, 6    | aucune accélération |
-| 0.6  | 1, 2, 3, 4, 5, 7, 10, 12 | le réglage livré |
-| 1.2  | 1, 2, 3, 5, 7, 11, 15, 19 | vif |
-| 2.0  | 1, 3, 5, 7, 10, 15, 21, 28 | nerveux |
+| 0    | 1, 2, 3, 4, 5, 6, 7, 8 | on s'en remet à l'appareil |
+| 0.3  | 1, 2, 3, 4, 5, 6, 8, 9 | le réglage livré |
+| 0.6  | 1, 2, 3, 4, 5, 7, 9, 11 | vif |
+| 0.9  | 1, 2, 3, 4, 5, 7, 10, 12 | nerveux |
 
-Le SDK Logi 0.1.1 n'expose aucun panneau de configuration : changer ce chiffre
+Ces valeurs restent basses à dessein : le grand cadran accélère déjà tout seul,
+ses `tick` passant de 7 à 80 selon la vitesse de rotation. Notre courbe se
+superpose à la sienne, donc un gain qui paraît raisonnable sur le papier
+s'emballe une fois sur l'appareil.
+
+Deux autres réglages comptent pour la douceur :
+
+| réglage | rôle |
+|---|---|
+| `ticksPerSlice` | valeur de `tick` qui vaut une coupe. 2 = la roulette avance d'une coupe par cran. |
+| `rateSmoothing` | inertie du débit, entre 0 et 1. 1 = le débit saute à chaque événement ; 0.35 = montée en pente douce. |
+
+Le SDK Logi 0.1.1 n'expose aucun panneau de configuration : changer ces chiffres
 impose de reconstruire (voir plus bas). Pour disposer de plusieurs niveaux
 directement dans Options+ sans reconstruire, il suffit de déclarer plusieurs
 actions avec des gains différents.
+
+`debugLog: true` journalise chaque événement reçu et chaque coupe envoyée : c'est
+ce relevé, rejoué hors du plugin, qui sert à régler les valeurs ci-dessus.
 
 ---
 
@@ -137,22 +153,34 @@ koffi ouvert et que le supprimer ferait échouer chaque build.
 ## Comment ça marche
 
 La console n'envoie pas un cran à la fois. Son micrologiciel les regroupe déjà
-selon la vitesse de rotation et transmet un `tick` entre 2 et 12. Le plugin
-calibre tout seul son unité « un cran » sur le plus petit `tick` reçu — chaque
-contrôle, et chaque réglage de vitesse d'Options+, a une échelle différente —
-puis applique un gain logarithmique :
+selon la vitesse de rotation : mesuré sur l'appareil, la roulette envoie un
+`tick` de 2 à 7, et le grand cadran de 7 à 80. Une valeur fixe, `ticksPerSlice`,
+convertit ce `tick` en coupes — et non plus un calibrage sur le plus petit `tick`
+reçu, qui confondait les deux contrôles et changeait la sensibilité en pleine
+rotation. Le plugin ajoute ensuite sa propre accélération, au-delà d'un seuil :
 
 ```
-frappes = crans × (1 + gain × ln(crans))
+coupes = crans × (1 + gain × ln(1 + (crans − seuil) / knee))
 ```
 
-Logarithmique et non exponentiel : ça mord dès les premiers crans, puis ça
-s'aplatit au lieu de s'emballer. Aucune accumulation, aucune temporisation :
-rien n'est ajouté à la latence.
+En dessous du seuil le multiplicateur vaut exactement 1 : un cran, une coupe,
+toujours. Au-delà, la montée est logarithmique et non exponentielle.
+
+Les coupes ne partent pas toutes d'un bloc. Un événement arrive toutes les 32 ms
+environ, parfois deux à 5 ms d'intervalle : envoyer les vingt coupes d'un seul
+`SendInput` faisait une marche d'escalier, vingt coupes sur une image et rien sur
+les deux suivantes. La première coupe part donc immédiatement, et les suivantes
+sont réparties par une minuterie sur l'intervalle observé entre événements —
+Windows arrondit `setTimeout` à 15.6 ms, soit une image à 60 Hz, la granularité
+la plus fine qu'OHIF puisse afficher de toute façon. Le débit lui-même est lissé,
+pour que la vitesse monte en pente douce plutôt qu'en marches.
+
+Le reliquat fractionnaire est reporté d'un événement au suivant, puis abandonné à
+la fin du geste ou sur un demi-tour : un cran isolé vaut toujours exactement une
+coupe, et revenir en arrière arrête net le défilement en cours.
 
 Les frappes partent par `SendInput` (Win32), appelé directement depuis Node via
-[koffi](https://koffi.dev/) — aucun processus fils, aucun script, un appel
-système par événement.
+[koffi](https://koffi.dev/) — aucun processus fils, aucun script.
 
 ---
 

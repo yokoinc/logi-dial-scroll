@@ -59,19 +59,34 @@ Turn the roller and the view scrolls.
 
 ## Tuning
 
-One setting: `gain`, at the top of
-[`src/accelerated-dial.ts`](src/accelerated-dial.ts).
+Everything lives at the top of [`src/scroll-model.ts`](src/scroll-model.ts).
 
-| gain | 1 to 6 detents give | feel |
+`gain` sets the acceleration the plugin adds of its own:
+
+| gain | 1 to 8 detents give | feel |
 |------|---------------------|------|
-| 0    | 1, 2, 3, 4, 5, 6    | no acceleration at all |
-| 0.6  | 1, 2, 3, 4, 5, 7, 10, 12 | the shipped default |
-| 1.2  | 1, 2, 3, 5, 7, 11, 15, 19 | brisk |
-| 2.0  | 1, 3, 5, 7, 10, 15, 21, 28 | aggressive |
+| 0    | 1, 2, 3, 4, 5, 6, 7, 8 | leave it all to the device |
+| 0.3  | 1, 2, 3, 4, 5, 6, 8, 9 | the shipped default |
+| 0.6  | 1, 2, 3, 4, 5, 7, 9, 11 | brisk |
+| 0.9  | 1, 2, 3, 4, 5, 7, 10, 12 | aggressive |
 
-The Logi SDK 0.1.1 exposes no settings panel, so changing it means rebuilding
+Those values are deliberately low: the large dial already accelerates on its
+own, its `tick` going from 7 to 80 with rotation speed. Our curve stacks on top
+of that one, so a gain that looks reasonable on paper runs away on the device.
+
+Two more settings matter for smoothness:
+
+| setting | what it does |
+|---|---|
+| `ticksPerSlice` | the `tick` value worth one slice. 2 means the roller advances one slice per detent. |
+| `rateSmoothing` | how much inertia the output rate has, 0 to 1. 1 jumps with every event; 0.35 ramps gently. |
+
+The Logi SDK 0.1.1 exposes no settings panel, so changing these means rebuilding
 (see below). If you want several strengths available in Options+ without
 rebuilding, register several actions with different gains.
+
+`debugLog: true` logs every event received and every slice sent. That recording,
+replayed outside the plugin, is what the values above were chosen from.
 
 ---
 
@@ -133,22 +148,33 @@ deleting it would fail every build.
 ## How it works
 
 The console does not report one detent at a time. Its firmware already batches
-them by rotation speed and sends a `tick` between 2 and 12. The plugin
-calibrates its own "one detent" unit on the smallest `tick` it has seen — every
-control, and every Options+ speed setting, has a different scale — then applies
-a logarithmic gain:
+them by rotation speed: measured on the device, the roller sends a `tick` of 2 to
+7, and the large dial 7 to 80. A fixed `ticksPerSlice` turns that `tick` into
+slices — no longer a calibration on the smallest `tick` seen, which conflated the
+two controls and changed sensitivity mid-turn. The plugin then adds its own
+acceleration past a threshold:
 
 ```
-keystrokes = detents × (1 + gain × ln(detents))
+slices = detents × (1 + gain × ln(1 + (detents − threshold) / knee))
 ```
 
-Logarithmic rather than exponential: it bites from the very first detents, then
-flattens out instead of running away. There is no accumulation and no timer, so
-nothing is added to the latency.
+Below the threshold the multiplier is exactly 1: one detent, one slice, always.
+Past it, the rise is logarithmic rather than exponential.
+
+Slices do not all leave at once. An event arrives roughly every 32 ms, sometimes
+two of them 5 ms apart, so sending twenty slices in a single `SendInput` produced
+a staircase: twenty slices on one frame, nothing on the next two. The first slice
+now leaves immediately and the rest are spread by a timer over the observed
+interval between events — Windows rounds `setTimeout` to 15.6 ms, which is one
+frame at 60 Hz, the finest granularity OHIF can display anyway. The rate itself
+is smoothed, so speed ramps instead of stepping.
+
+The fractional remainder carries from one event to the next, then is dropped at
+the end of a gesture or on a reversal: an isolated detent is always exactly one
+slice, and turning back stops the scroll in flight.
 
 Keystrokes are delivered through Win32 `SendInput`, called straight from Node
-via [koffi](https://koffi.dev/) — no child process, no script, one syscall per
-event.
+via [koffi](https://koffi.dev/) — no child process, no script.
 
 ---
 

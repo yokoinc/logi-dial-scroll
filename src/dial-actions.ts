@@ -23,7 +23,7 @@ export class OhifScrollAction extends AcceleratedDialAction {
   description =
     'Fait défiler les coupes à la roulette. Flèche bas / Flèche haut, de plus en plus vite selon la vitesse de rotation.';
 
-  protected emit(direction: 1 | -1, repeats: number, delayMs: number) {
-    sendKey(direction > 0 ? Vk.DOWN : Vk.UP, Mod.NONE, repeats, delayMs);
+  protected emit(direction: 1 | -1, repeats: number) {
+    sendKey(direction > 0 ? Vk.DOWN : Vk.UP, Mod.NONE, repeats, 0);
   }
 }
