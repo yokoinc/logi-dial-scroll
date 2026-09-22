@@ -1,24 +1,26 @@
 import { AdjustmentAction, type AdjustmentActionExecuteEvent } from '@logitech/plugin-sdk';
 
-import { SlicePacer, Tuning, slicesForTick } from './scroll-model';
-
-export { Tuning } from './scroll-model';
+import { Pacing, type ScrollProfile, SlicePacer } from './scroll-model';
 
 /**
- * Base des actions de molette : convertit chaque evenement en coupes, puis les
- * distribue dans le temps et delegue l'envoi a la sous-classe.
+ * Base des actions de molette : convertit chaque evenement en coupes selon le
+ * profil du controle, puis les distribue dans le temps et delegue l'envoi a la
+ * sous-classe.
  *
- * La console fournit deja un `tick` proportionnel a la vitesse de rotation. La
- * premiere coupe part des reception de l'evenement ; les suivantes sont
- * reparties sur la duree qui le separe du prochain, au lieu de partir toutes
- * dans la meme image.
+ * Chaque action a son propre `SlicePacer` : le grand cadran et la petite molette
+ * ne partagent ni reliquat, ni vitesse mesuree, ni echelle.
  */
 export abstract class AcceleratedDialAction extends AdjustmentAction {
   readonly hasReset = false;
 
-  private readonly pacer = new SlicePacer();
+  private readonly pacer: SlicePacer;
 
   private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(profile: ScrollProfile) {
+    super();
+    this.pacer = new SlicePacer(profile);
+  }
 
   /**
    * Envoie une rafale de coupes.
@@ -29,20 +31,16 @@ export abstract class AcceleratedDialAction extends AdjustmentAction {
   protected abstract emit(direction: 1 | -1, repeats: number): void;
 
   execute(event: AdjustmentActionExecuteEvent) {
-    if (event.tick === 0) {
-      return;
-    }
+    const immediate = this.pacer.push(performance.now(), event.tick);
 
-    const direction: 1 | -1 = event.tick > 0 ? 1 : -1;
-    const slices = slicesForTick(event.tick);
-    const immediate = this.pacer.push(performance.now(), direction, slices);
-
-    if (Tuning.debugLog) {
-      console.log(`[diag] tick=${event.tick} coupes=${slices.toFixed(2)} immediat=${immediate}`);
+    if (Pacing.debugLog) {
+      console.log(
+        `[diag] ${this.name} tick=${event.tick} vitesse=${this.pacer.slicesPerSecond.toFixed(0)} immediat=${immediate}`,
+      );
     }
 
     if (immediate > 0) {
-      this.emit(direction, immediate);
+      this.emit(this.pacer.direction, immediate);
     }
 
     this.scheduleTick();
@@ -58,14 +56,14 @@ export abstract class AcceleratedDialAction extends AdjustmentAction {
 
       const due = this.pacer.tick(performance.now());
       if (due > 0) {
-        if (Tuning.debugLog) {
-          console.log(`[diag] minuterie -> ${due}`);
+        if (Pacing.debugLog) {
+          console.log(`[diag] ${this.name} minuterie -> ${due}`);
         }
 
         this.emit(this.pacer.direction, due);
       }
 
       this.scheduleTick();
-    }, Tuning.tickMs);
+    }, Pacing.tickMs);
   }
 }

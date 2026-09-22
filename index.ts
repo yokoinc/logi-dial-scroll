@@ -1,6 +1,6 @@
 import { PluginSDK } from '@logitech/plugin-sdk';
 
-import { OhifScrollAction } from './src/dial-actions';
+import { OhifDialScrollAction, OhifRollerScrollAction } from './src/dial-actions';
 import { shutdownInput, warmUpInput } from './src/win-input';
 
 const pluginSDK = new PluginSDK();
@@ -8,7 +8,8 @@ const pluginSDK = new PluginSDK();
 console.log('[logi-dial-scroll] demarrage du plugin');
 warmUpInput();
 
-pluginSDK.registerAction(new OhifScrollAction());
+pluginSDK.registerAction(new OhifDialScrollAction());
+pluginSDK.registerAction(new OhifRollerScrollAction());
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {

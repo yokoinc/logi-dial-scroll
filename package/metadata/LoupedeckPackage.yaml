@@ -1,6 +1,6 @@
 type: plugin4
 name: DialAccel
-version: 1.0.0
+version: 1.1.0
 displayName: Dial Accel
 description: Defilement accelere a la molette, plus vous tournez vite plus ca defile loin
 author: yokoinc
