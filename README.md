@@ -95,6 +95,10 @@ Two things that waste time here:
   The roller does not. If that overlay bothers you, assign both actions to the
   roller in two different profiles rather than to the dial.
 
+Keystrokes go to whatever holds keyboard focus, not to whatever the mouse hovers.
+In OHIF, **one click in the viewport is enough**: the pointer can then go
+wherever you like and the scrolling still reaches the right window.
+
 ---
 
 ## Tuning

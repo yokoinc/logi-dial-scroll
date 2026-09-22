@@ -96,6 +96,10 @@ Deux choses qui font perdre du temps ici :
   dessus. La roulette, non. Si cette incrustation te gêne, assigne les deux
   actions à la roulette dans deux profils différents plutôt qu'au cadran.
 
+Les frappes vont à l'élément qui a le focus clavier, pas à celui que survole la
+souris. Dans OHIF, **un clic dans la visionneuse suffit** : le pointeur peut
+ensuite aller où il veut, le défilement continue d'arriver à la bonne fenêtre.
+
 ---
 
 ## Réglage
